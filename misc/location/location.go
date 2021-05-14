@@ -5,8 +5,11 @@ import (
 	"unicode/utf8"
 )
 
-func Calculate(buf string, byteoffset int) (line, pos int) {
+// Calculate returns 1-based [line:col] pair from byte offset into the buf
+func Calculate(buf string, byteoffset int) (line, col int) {
 	buf = strings.TrimPrefix(buf, "\xef\xbb\xbf") // skip bom
+
+	col = 1
 
 	cur, end := 0, len(buf)
 	linestart := cur
@@ -29,7 +32,7 @@ func Calculate(buf string, byteoffset int) (line, pos int) {
 			linestart = cur
 		}
 	}
-	pos = utf8.RuneCountInString(buf[linestart:byteoffset])
+	col = 1 + utf8.RuneCountInString(buf[linestart:byteoffset])
 
 	return
 }

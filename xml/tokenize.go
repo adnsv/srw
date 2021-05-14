@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/adnsv/srw/misc/ascii"
 	"github.com/adnsv/srw/misc/location"
 )
 
@@ -70,16 +71,16 @@ type errImpl struct {
 	ec     ErrCode
 	offset int // offset within the original buffer
 	line   int
-	pos    int
+	col    int
 }
 
 func (e *errImpl) Error() string {
-	return fmt.Sprintf("xml parser [%d:%d]: %s", e.line+1, e.pos+1, e.ec)
+	return fmt.Sprintf("xml parser [%d:%d]: %s", e.line, e.col, e.ec)
 }
 
 func NewError(ec ErrCode, buf string, offset int) error {
 	ret := &errImpl{ec: ec, offset: offset}
-	ret.line, ret.pos = location.Calculate(buf, offset)
+	ret.line, ret.col = location.Calculate(buf, offset)
 	return ret
 }
 
@@ -137,7 +138,15 @@ func (t TokenKind) String() string {
 
 type NameString string
 
+func (ns NameString) Raw() string {
+	return string(ns)
+}
+
 type RawString string
+
+func (rs RawString) Raw() string {
+	return string(rs)
+}
 
 func (rs RawString) Unscrambled() string {
 	return unscramble(string(rs))
@@ -543,20 +552,12 @@ func (tt *tokenizer) skipStr(c string) bool {
 	return false
 }
 
-func isAsciiAlpha(cp byte) bool {
-	return ('A' <= cp && cp <= 'Z') || ('a' <= cp && cp <= 'z')
-}
-
-func isDecDigit(cp byte) bool {
-	return '0' <= cp && cp <= '9'
-}
-
 func isNameStart(cp byte) bool {
-	return isAsciiAlpha(cp) || cp == ':' || cp == '_' || cp >= 128
+	return ascii.IsAlpha(cp) || cp == ':' || cp == '_' || cp >= 128
 }
 
 func isNameChar(cp byte) bool {
-	return isNameStart(cp) || isDecDigit(cp) || cp == '-' || cp == '.'
+	return isNameStart(cp) || ascii.IsDecDigit(cp) || cp == '-' || cp == '.'
 }
 
 func isWhite(cp byte) bool {

@@ -145,11 +145,11 @@ func (ci *Content) IsPI() bool {
 	return ci.t != nil && ci.t.Kind == PI
 }
 func (ci *Content) MakeError(prefix, msg string) error {
-	line, pos := location.Calculate(ci.tt.buf, ci.tt.cur)
+	line, col := location.Calculate(ci.tt.buf, ci.tt.cur)
 	if prefix == "" {
 		prefix = "xml parser"
 	}
-	return fmt.Errorf("%s [%d:%d]: %s", prefix, line+1, pos+1, msg)
+	return fmt.Errorf("%s [%d:%d]: %s", prefix, line, col, msg)
 }
 func (ci *Content) HandleTag(callback func(attrs AttributeList, content *Content) error) {
 	if ci == nil || ci.t == nil || ci.t.Kind != Tag {

@@ -15,11 +15,13 @@ type Marshaler interface {
 	MarshalXG(w *Writer) error
 }
 
-func toStr(v interface{}) (string, error) {
-	return marshalToStr(reflect.ValueOf(v))
+type scrambler = func(s string) RawString
+
+func toRawStr(scr scrambler, v interface{}) (RawString, error) {
+	return reflectToRawStr(scr, reflect.ValueOf(v))
 }
 
-func marshalToStr(val reflect.Value) (string, error) {
+func reflectToRawStr(scr scrambler, val reflect.Value) (RawString, error) {
 	if !val.IsValid() {
 		return "", nil
 	}
@@ -34,34 +36,21 @@ func marshalToStr(val reflect.Value) (string, error) {
 	kind := val.Kind()
 	typ := val.Type()
 
-	/*
-
-		if val.CanInterface() && typ.Implements(marshalerType) {
-			return w.handleMarshaler(val.Interface().(Marshaler))
-		}
-		if val.CanAddr() {
-			pv := val.Addr()
-			if pv.CanInterface() && pv.Type().Implements(marshalerType) {
-				return w.handleMarshaler(pv.Interface().(Marshaler))
-			}
-		}
-	*/
-
 	if val.CanInterface() && typ.Implements(textMarshalerType) {
-		return marshalTextMarshalerToStr(val.Interface().(encoding.TextMarshaler))
+		return textMarshalerToRawStr(scr, val.Interface().(encoding.TextMarshaler))
 	}
 	if val.CanAddr() {
 		pv := val.Addr()
 		if pv.CanInterface() && pv.Type().Implements(textMarshalerType) {
-			return marshalTextMarshalerToStr(pv.Interface().(encoding.TextMarshaler))
+			return textMarshalerToRawStr(scr, pv.Interface().(encoding.TextMarshaler))
 		}
 	}
 
 	if (kind == reflect.Slice || kind == reflect.Array) && typ.Elem().Kind() != reflect.Uint8 {
 		// concatenate
-		ss := ""
+		var ss RawString
 		for i, n := 0, val.Len(); i < n; i++ {
-			s, err := marshalToStr(val.Index(i))
+			s, err := reflectToRawStr(scr, val.Index(i))
 			if err != nil {
 				return "", err
 			}
@@ -75,15 +64,15 @@ func marshalToStr(val reflect.Value) (string, error) {
 		return "", nil
 	}
 
-	s, err := marshalSimple(typ, val)
+	s, err := simpleToRawString(scr, typ, val)
 	return s, err
 }
 
 func toContent(w *Writer, v interface{}) error {
-	return marshalToContent(w, reflect.ValueOf(v))
+	return marshalToContent(ScrambleContent, w, reflect.ValueOf(v))
 }
 
-func marshalToContent(w *Writer, val reflect.Value) error {
+func marshalToContent(scr scrambler, w *Writer, val reflect.Value) error {
 	if !val.IsValid() {
 		return nil
 	}
@@ -111,28 +100,28 @@ func marshalToContent(w *Writer, val reflect.Value) error {
 	}
 
 	if val.CanInterface() && typ.Implements(textMarshalerType) {
-		s, err := marshalTextMarshalerToStr(val.Interface().(encoding.TextMarshaler))
+		s, err := textMarshalerToRawStr(scr, val.Interface().(encoding.TextMarshaler))
 		if err != nil {
 			return err
 		}
-		w.scramblestr(s)
+		w.put(s)
 		return nil
 	}
 	if val.CanAddr() {
 		pv := val.Addr()
 		if pv.CanInterface() && pv.Type().Implements(textMarshalerType) {
-			s, err := marshalTextMarshalerToStr(pv.Interface().(encoding.TextMarshaler))
+			s, err := textMarshalerToRawStr(scr, pv.Interface().(encoding.TextMarshaler))
 			if err != nil {
 				return err
 			}
-			w.scramblestr(s)
+			w.put(s)
 			return nil
 		}
 	}
 
 	if (kind == reflect.Slice || kind == reflect.Array) && typ.Elem().Kind() != reflect.Uint8 {
 		for i, n := 0, val.Len(); i < n; i++ {
-			if err := marshalToContent(w, val.Index(i)); err != nil {
+			if err := marshalToContent(scr, w, val.Index(i)); err != nil {
 				return err
 			}
 		}
@@ -144,31 +133,31 @@ func marshalToContent(w *Writer, val reflect.Value) error {
 		return nil
 	}
 
-	s, err := marshalSimple(typ, val)
+	s, err := simpleToRawString(scr, typ, val)
 	if err != nil {
 		return err
 	}
-	w.scramblestr(s)
+	w.put(s)
 	return nil
 }
 
-func marshalTextMarshalerToStr(v encoding.TextMarshaler) (string, error) {
+func textMarshalerToRawStr(scr scrambler, v encoding.TextMarshaler) (RawString, error) {
 	b, e := v.MarshalText()
-	return string(b), e
+	return scr(string(b)), e
 }
 
-func marshalSimple(typ reflect.Type, val reflect.Value) (string, error) {
+func simpleToRawString(scr scrambler, typ reflect.Type, val reflect.Value) (RawString, error) {
 	switch val.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return strconv.FormatInt(val.Int(), 10), nil
+		return RawString(strconv.FormatInt(val.Int(), 10)), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return strconv.FormatUint(val.Uint(), 10), nil
+		return RawString(strconv.FormatUint(val.Uint(), 10)), nil
 	case reflect.Float32, reflect.Float64:
-		return strconv.FormatFloat(val.Float(), 'g', -1, val.Type().Bits()), nil
+		return RawString(strconv.FormatFloat(val.Float(), 'g', -1, val.Type().Bits())), nil
 	case reflect.String:
-		return val.String(), nil
+		return scr(val.String()), nil
 	case reflect.Bool:
-		return strconv.FormatBool(val.Bool()), nil
+		return RawString(strconv.FormatBool(val.Bool())), nil
 	case reflect.Array:
 		if typ.Elem().Kind() != reflect.Uint8 {
 			break
@@ -181,13 +170,13 @@ func marshalSimple(typ reflect.Type, val reflect.Value) (string, error) {
 			bytes = make([]byte, val.Len())
 			reflect.Copy(reflect.ValueOf(bytes), val)
 		}
-		return string(bytes), nil
+		return scr(string(bytes)), nil
 	case reflect.Slice:
 		if typ.Elem().Kind() != reflect.Uint8 {
 			break
 		}
 		// []byte
-		return string(val.Bytes()), nil
+		return scr(string(val.Bytes())), nil
 	}
 	return "", &UnsupportedTypeError{typ}
 }

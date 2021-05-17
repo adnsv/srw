@@ -1,25 +1,45 @@
 package css
 
-type Rule string
+type Rule struct {
+	AtKeywordToken *
+}
 
-type RuleKind int
+// Component represents CSS "Component value",
+// which is one of PreservedToken, CurlyBlock, RoundBlock, SquareBlock
+type ComponentValue interface {
+}
+
+type PreservedToken struct {
+	ComponentValue
+	Components []ComponentValue
+}
+
+type BlockType int
+
+type BlockBase struct {
+	Components []ComponentValue
+}
 
 const (
-	EmptyRule = RuleKind(iota)
-	TagRule
-	ClassRule
-	IdRule
+	CurlyBlock = iota
+	RoundBlock
+	SquareBlock
 )
 
-func (r Rule) Kind() RuleKind {
-	if len(r) == 0 {
-		return EmptyRule
-	}
-	if r[0] == '.' {
-		return ClassRule
-	}
-	if r[0] == '#' {
-		return IdRule
-	}
-	return TagRule
+type Block struct {
+	Type           BlockType
+	BlockBase      // contains Components
+	ComponentValue // can be a child in ComponentValue
+}
+
+type FunctionBlock struct {
+	//
+	Components []ComponentValue
+	ComponentValue
+}
+
+type AtRule struct {
+	Identifier string
+	Components []ComponentValue
+	CurlyBlock *BlockBase
 }

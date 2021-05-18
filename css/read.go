@@ -6,6 +6,11 @@ import (
 	gc "github.com/gorilla/css/scanner"
 )
 
+func Read(buf string) ([]*Rule, error) {
+	r := openReader(buf)
+	return r.consumeListOfRules()
+}
+
 func mkerr(msg string, line, col int) error {
 	return fmt.Errorf("css [%d,%d]: %s", line, col, msg)
 }
@@ -37,8 +42,11 @@ func (r *reader) charv() string {
 func (r *reader) isSpace() bool {
 	return r.cur.Type == gc.TokenS
 }
+func (r *reader) eof() bool {
+	return r.cur.Type == gc.TokenEOF
+}
 func (r *reader) done() bool {
-	return r.cur.Type == gc.TokenS || r.cur.Type == gc.TokenEOF
+	return r.cur.Type == gc.TokenError || r.cur.Type == gc.TokenEOF
 }
 func (r *reader) skipSpace() bool {
 	if !r.isSpace() {
@@ -49,140 +57,136 @@ func (r *reader) skipSpace() bool {
 	return true
 }
 
-func (r *reader) run() error {
+func (r *reader) consumeListOfRules() ([]*Rule, error) {
+	rules := []*Rule{}
 	for r.next() {
-		if r.isSpace() {
-			continue
-		}
-		r.sot= r.cur
-		if r.cur.Type == gc.TokenCDO {
-			// comment
-			for r.next()&&r.cur. != 
-			i := findtyp(int(gc.TokenCDC))
-			if i < 0 {
-				return mkerr("unterminated comment")
-			}
-		}
-	}
-}
-
-/*
-
-
-func (r reader) init(buf string) error {
-	scanner := gc.New(buf)
-	r.tt = r.tt[:0]
-	r.cur, r.sot, r.end = 0, 0, 0
-
-	for {
-		t := scanner.Next()
-		if t.Type == gc.TokenError {
-			return mkerr(t.Value, t.Line, t.Column)
-		}
-		if t.Type == gc.TokenEOF {
-			break
-		}
-		r.tt = append(r.tt, t)
-		fmt.Println(t)
-	}
-
-	r.end = len(r.tt)
-	return nil
-}
-
-func (r *reader) currtk() *gc.Token {
-	return r.tt[r.cur]
-}
-
-func (r *reader) isSpace(idx int) bool {
-	return idx < r.end && r.tt[idx].Type == gc.TokenS
-}
-func (r *reader) skipSpace() bool {
-	if !r.isSpace(r.cur) {
-		return false
-	}
-	r.cur++
-	return true
-}
-
-func (r *reader) charv(idx int) string {
-	if idx < r.end && r.tt[idx].Type == gc.TokenChar {
-		return r.tt[idx].Value
-	}
-	return ""
-}
-
-func Read(s string) error {
-	r := reader{}
-	err := r.init(s)
-	if err != nil {
-		return err
-	}
-
-	for r.cur < r.end {
-		if r.skipSpace() {
-			continue
-		}
 		r.sot = r.cur
-		t := r.tt[r.cur]
-		r.cur++
 
-		if t.Type == gc.TokenCDO {
-			// comment
-			for r.cur < r.end &&
-			i := findtyp(int(gc.TokenCDC))
-			if i < 0 {
-				return mkerr("unterminated comment")
-			}
-		}
+		switch r.cur.Type {
 
-		if t.Type == gc.TokenAtKeyword {
-			// at-keyword-token
-			ret := &AtRule{
-				Identifier: tt[cur].Value,
-			}
-			for space(cur) {
-				cur++
-			}
-			c := ""
-			for {
-				if cur == end {
-					return mkerr("missing at-rule terminator")
-				}
-				c = charv(cur)
-				if c == ";" || c == "{" {
-					cur++
-					break
-				}
-				ret.Components += tt[cur].Value
-				cur++
-			}
-			if c == ";" {
-				cur++
-			} else if c != "{" {
-				return mkerr("missing at-rule terminator")
-			} else {
-				for {
-					if cur == end {
-						return mkerr("missing at-rule {}-block terminator")
-					}
-					if charv(cur) == "}" {
-						cur++
-						break
-					}
-					ret.CurlyBlockContent += tt[cur].Value
-					cur++
-				}
-			}
+		case gc.TokenS:
 			continue
-		}
 
-		// qualified rule
-		if t.Type == gcss.TokenChar {
+		case gc.TokenEOF:
+			return rules, nil
 
+		case gc.TokenCDO:
+			for r.next() {
+				switch r.cur.Type {
+				case gc.TokenCDC:
+					continue
+				case gc.TokenEOF:
+					return nil, r.mkerr("unterminated comment")
+				}
+			}
+		case gc.TokenAtKeyword:
+			rule, err := r.consumeRule(true)
+			if err != nil {
+				return nil, err
+			}
+			rules = append(rules, rule)
+
+		default:
+			rule, err := r.consumeRule(false)
+			if err != nil {
+				return nil, err
+			}
+			rules = append(rules, rule)
 		}
 	}
-	return nil
+	return rules, nil
 }
 
-*/
+func (r *reader) consumeRule(atrule bool) (*Rule, error) {
+	rule := &Rule{}
+	if atrule {
+		rule.AtKeywordToken = r.cur
+		if !r.next() {
+			return nil, r.mkerr("unterminated at-rule")
+		}
+	}
+	for ; !r.done(); r.next() {
+		switch {
+		case r.charv() == ";":
+			r.next()
+			return rule, nil
+		case r.cur.Type == gc.TokenEOF:
+			return rule, r.mkerr("unterminated at-rule")
+		case r.charv() == "{":
+			blk, err := r.consumeSimpleBlock()
+			if err != nil {
+				return nil, err
+			}
+			rule.Block = blk
+			return rule, nil
+		default:
+			cv, err := r.consumeComponentValue()
+			if err != nil {
+				return nil, err
+			}
+			rule.Prelude = append(rule.Prelude, cv)
+		}
+	}
+	return rule, nil
+}
+
+func (r *reader) consumeSimpleBlock() (*Block, error) {
+	blk := &Block{}
+	switch r.charv() {
+	case "{":
+		blk.Type = CurlyBlock
+	case "(":
+		blk.Type = RoundBlock
+	case "[":
+		blk.Type = SquareBlock
+	default:
+		return nil, r.mkerr("invalid block token")
+	}
+	term := blk.Type.Postfix()
+	for r.next() {
+		switch {
+		case r.charv() == term:
+			return blk, nil
+		case r.eof():
+			return nil, r.mkerr("unterminated " + term + "-block")
+		default:
+			c, err := r.consumeComponentValue()
+			if err != nil {
+				return nil, err
+			}
+			blk.Components = append(blk.Components, c)
+		}
+	}
+	return blk, nil
+}
+
+func (r *reader) consumeComponentValue() (ComponentValue, error) {
+	c := r.charv()
+	switch {
+	case c == "{", c == "(", c == "[":
+		return r.consumeSimpleBlock()
+	case r.cur.Type == gc.TokenFunction:
+		return r.consumeFunction()
+	default:
+		return r.cur, nil
+	}
+}
+
+func (r *reader) consumeFunction() (*Function, error) {
+	f := &Function{Name: r.cur.Value}
+	for r.next() {
+		switch {
+		case r.charv() == ")":
+			return f, nil
+		case r.eof():
+			return nil, r.mkerr("unterminated function")
+		default:
+			c, err := r.consumeComponentValue()
+			if err != nil {
+				return nil, err
+			}
+			f.Components = append(f.Components, c)
+		}
+	}
+	return f, nil
+}

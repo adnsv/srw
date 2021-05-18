@@ -1,7 +1,11 @@
 package css
 
+import gc "github.com/gorilla/css/scanner"
+
 type Rule struct {
-	AtKeywordToken *
+	AtKeywordToken *gc.Token
+	Prelude        []ComponentValue
+	Block          *Block
 }
 
 // Component represents CSS "Component value",
@@ -9,16 +13,7 @@ type Rule struct {
 type ComponentValue interface {
 }
 
-type PreservedToken struct {
-	ComponentValue
-	Components []ComponentValue
-}
-
 type BlockType int
-
-type BlockBase struct {
-	Components []ComponentValue
-}
 
 const (
 	CurlyBlock = iota
@@ -27,19 +22,17 @@ const (
 )
 
 type Block struct {
-	Type           BlockType
-	BlockBase      // contains Components
-	ComponentValue // can be a child in ComponentValue
+	Type       BlockType
+	Components []ComponentValue // contains Components
 }
 
-type FunctionBlock struct {
-	//
+type Function struct {
+	Name       string
 	Components []ComponentValue
-	ComponentValue
 }
 
 type AtRule struct {
 	Identifier string
 	Components []ComponentValue
-	CurlyBlock *BlockBase
+	CurlyBlock *Block
 }

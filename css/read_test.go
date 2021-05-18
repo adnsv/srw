@@ -1,7 +1,9 @@
 package css
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"testing"
 )
 
@@ -10,17 +12,20 @@ func TestRead(t *testing.T) {
 }
 
 func read(buf string) {
-	err := Read(buf)
+	rules, err := Read(buf)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("found %d rules\n", len(rules))
+
+	//w := &bytes.Buffer{}
+	Write(os.Stdout, rules)
+	fmt.Printf("done\n")
 }
 
 const example01 = `
-@IDENTIFIER (RULE);
-@IDENTIFIER blah { blah }
 .st0{fill:none;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
-.st1{fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+.st1 {fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
 .st2{fill:#304499;stroke:#FFFFFF;stroke-width:0.5;stroke-miterlimit:10;}
 .st3{fill:#FFFFFF;stroke:#304499;stroke-width:0.3502;stroke-miterlimit:10;}
 .st4{fill:#010101;}
@@ -29,8 +34,6 @@ const example01 = `
 `
 
 const example01_tokens = `
-Process exiting with code: 0
-API server listening at: 127.0.0.1:38102
 S (line: 1, column: 1): "\n"
 ATKEYWORD (line: 2, column: 1): "@IDENTIFIE"...
 S (line: 2, column: 12): " "

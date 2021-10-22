@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/adnsv/srw/svg"
+	"github.com/adnsv/srw/xml"
 )
 
 const sampleSVG = `<?xml version="1.0" encoding="utf-8"?>
@@ -23,5 +24,5 @@ func Example_readwrite() {
 		log.Fatal(err)
 	}
 
-	svg.Write(os.Stdout, s)
+	svg.Write(os.Stdout, s, xml.WriterConfig{Indent: xml.Indent2Spaces})
 }

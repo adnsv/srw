@@ -10,7 +10,7 @@ import (
 func Example_write() {
 
 	out := &bytes.Buffer{}
-	w := xml.NewWriter(out)
+	w := xml.NewWriter(out, xml.WriterConfig{Indent: xml.Indent2Spaces})
 
 	s := "Hello, "
 

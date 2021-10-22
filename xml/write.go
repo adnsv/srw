@@ -85,7 +85,7 @@ func (w *Writer) XmlDecl() {
 
 const nolevel = -1
 
-func (w *Writer) OTag(name NameString) {
+func (w *Writer) OTag(name NameString) *Writer {
 	if len(name) == 0 || name == "+" {
 		panic("xml writer: trying to write a tag with empty name")
 	}
@@ -113,9 +113,10 @@ func (w *Writer) OTag(name NameString) {
 	w.put(RawString(name.Raw()))
 	w.inOTag = true
 	w.prevLineLevel = nolevel
+	return w
 }
 
-func (w *Writer) CTag() {
+func (w *Writer) CTag() *Writer {
 	if len(w.names) == 0 {
 		panic("xml writer: tag stack underflow")
 	}
@@ -142,31 +143,36 @@ func (w *Writer) CTag() {
 		w.putIndent(w.indentLevel)
 		w.prevLineLevel = w.indentLevel
 	}
+	return w
 }
 
-func (w *Writer) String(s string) {
+func (w *Writer) String(s string) *Writer {
 	w.BeginContent()
 	w.put(ScrambleContent(s))
+	return w
 }
 
-func (w *Writer) RawString(s RawString) {
+func (w *Writer) RawString(s RawString) *Writer {
 	w.BeginContent()
 	w.put(s)
+	return w
 }
 
-func (w *Writer) Write(v interface{}) {
+func (w *Writer) Write(v interface{}) *Writer {
 	w.BeginContent()
 	toContent(w, v)
+	return w
 }
 
-func (w *Writer) Comment(s string) {
+func (w *Writer) Comment(s string) *Writer {
 	w.BeginContent()
 	w.put("<!--")
 	w.put(RawString(strings.ReplaceAll(s, "--", "-"))) // make sure double-dash is not written
 	w.put("-->")
+	return w
 }
 
-func (w *Writer) StringAttr(name NameString, value string) {
+func (w *Writer) StringAttr(name NameString, value string) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
@@ -175,9 +181,10 @@ func (w *Writer) StringAttr(name NameString, value string) {
 	w.put(`="`)
 	w.put(ScrambleAttr(value))
 	w.put(`"`)
+	return w
 }
 
-func (w *Writer) RawAttr(name NameString, value RawString) {
+func (w *Writer) RawAttr(name NameString, value RawString) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
@@ -186,9 +193,10 @@ func (w *Writer) RawAttr(name NameString, value RawString) {
 	w.put(`="`)
 	w.put(value)
 	w.put(`"`)
+	return w
 }
 
-func (w *Writer) Attr(name NameString, value interface{}) {
+func (w *Writer) Attr(name NameString, value interface{}) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
@@ -198,49 +206,53 @@ func (w *Writer) Attr(name NameString, value interface{}) {
 	w.put(`="`)
 	w.put(s)
 	w.put(`"`)
+	return w
 }
 
-func (w *Writer) OptStringAttr(name NameString, value string) {
+func (w *Writer) OptStringAttr(name NameString, value string) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
 	if len(value) == 0 {
-		return
+		return w
 	}
 	w.put(" ")
 	w.put(RawString(name.Raw()))
 	w.put(`="`)
 	w.put(ScrambleAttr(value))
 	w.put(`"`)
+	return w
 }
 
-func (w *Writer) OptRawAttr(name NameString, value RawString) {
+func (w *Writer) OptRawAttr(name NameString, value RawString) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
 	if len(value) == 0 {
-		return
+		return w
 	}
 	w.put(" ")
 	w.put(RawString(name.Raw()))
 	w.put(`="`)
 	w.put(value)
 	w.put(`"`)
+	return w
 }
 
-func (w *Writer) OptAttr(name NameString, value interface{}) {
+func (w *Writer) OptAttr(name NameString, value interface{}) *Writer {
 	if !w.inOTag {
 		panic("xml writer: trying to write an attribute outside of an open tag")
 	}
 	r, _ := toRawStr(ScrambleAttr, value)
 	if len(r) == 0 {
-		return
+		return w
 	}
 	w.put(" ")
 	w.put(RawString(name.Raw()))
 	w.put(`="`)
 	w.put(r)
 	w.put(`"`)
+	return w
 }
 
 var tabs = [8]byte{'\t', '\t', '\t', '\t', '\t', '\t', '\t', '\t'}

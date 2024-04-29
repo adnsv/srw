@@ -37,6 +37,14 @@ func (aa AttributeList) Attr(name string) (string, bool) {
 	return "", false
 }
 
+func (aa AttributeList) AsMap() map[string]string {
+	m := make(map[string]string, len(aa))
+	for _, a := range aa {
+		m[string(a.Name)] = a.Value.Unscrambled()
+	}
+	return m
+}
+
 type ContentHandler = func(t *Token) error
 type TagHandler func(tag *Token, attrs AttributeList, content *Content) error
 
@@ -151,7 +159,10 @@ func (ci *Content) MakeError(prefix, msg string) error {
 	}
 	return fmt.Errorf("%s [%d:%d]: %s", prefix, line, col, msg)
 }
-func (ci *Content) HandleTag(callback func(attrs AttributeList, content *Content) error) {
+
+type ListTagCallback func(attrs AttributeList, content *Content) error
+
+func (ci *Content) HandleTag(callback ListTagCallback) {
 	if ci == nil || ci.t == nil || ci.t.Kind != Tag {
 		return
 	}
@@ -236,7 +247,6 @@ func (ci *Content) HandleTag(callback func(attrs AttributeList, content *Content
 // returns empty string.
 //
 // This is useful for parsing <tag>string-content</tag> nodes
-//
 func (ci *Content) ChildStringContent() RawString {
 	if ci == nil || ci.t == nil || ci.t.Kind != Tag {
 		return ""
@@ -258,22 +268,18 @@ func (ci *Content) ChildStringContent() RawString {
 		return ""
 	}
 	if t.Kind == BeginContent {
-		t = ci.tt.Next()
-		if t.Kind == SData {
-			ret := t.Value
-			t = ci.tt.Next()
-			if t.Kind == EndContent {
-				ci.t = nil
-				return ret
-			}
-		}
+		var s RawString
+
 		// skip the rest of child nodes
 		for {
 			t = ci.tt.Next()
 			switch t.Kind {
-			case EndContent, EOF:
+			case EOF:
 				ci.t = nil
-				return ""
+				return s
+			case EndContent:
+				ci.t = nil
+				return s
 			case Err:
 				ci.err = t.Error
 				return ""
@@ -284,7 +290,11 @@ func (ci *Content) ChildStringContent() RawString {
 					return ""
 				}
 				continue
-			case SData, CData, Comment, PI:
+			case SData:
+				s += t.Value
+				continue
+
+			case CData, Comment, PI:
 				continue
 			}
 			// we should not end up being here
@@ -315,7 +325,9 @@ func skipTag(tt *tokenizer) error {
 		for {
 			t = tt.Next()
 			switch t.Kind {
-			case EndContent, EOF:
+			case EOF:
+				return nil
+			case EndContent:
 				return nil
 			case Err:
 				return t.Error

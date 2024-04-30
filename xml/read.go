@@ -62,6 +62,10 @@ func (ci *Content) Err() error {
 	return ci.err
 }
 
+func (ci *Content) SrcPos() int {
+	return ci.t.SrcPos
+}
+
 func (ci *Content) Next() (ok bool) {
 	if ci == nil || ci.finished || ci.err != nil {
 		return false

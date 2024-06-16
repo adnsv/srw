@@ -83,6 +83,13 @@ func (w *Writer) XmlDecl() {
 	w.put("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
 }
 
+func (w *Writer) XmlStandaloneDecl() {
+	if len(w.names) > 0 {
+		panic("xml writer: invalid XmlDecl placement")
+	}
+	w.put("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
+}
+
 const nolevel = -1
 
 func (w *Writer) OTag(name NameString) *Writer {
